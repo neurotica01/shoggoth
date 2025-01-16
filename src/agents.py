@@ -41,7 +41,7 @@ def create_theme_agent(State) -> StateGraph:
     def theme_generator(state: State) -> State:
         messages = [
             ("system", "You are a theme generator for a roguelike deckbuilding card game. It has a lovecraftian, eldritch theme. The theme should be 1-2 sentences and contain the physical setting of the level, the vibe, potentially some species of creatures that live there. Keep in mind that you'll be generating a lot! so feel free to be creative and make it interesting. Not too serious, for instance 'The City of the Dead', 'Yggdrasil Tree Nursery And Store', 'Bottomless Pit Supervisory Trade School.'"),
-            ("user", f"Generate a theme for a card game. The history is: {state['history']}, so please make sure the new one is relatively orthogonal to the previous ones."),
+            ("user", f"Generate a theme for a card game. The history is: {state['history']}, so please make sure the new one is relatively"),
         ]
         
         response = theme_generator_llm.invoke(messages)
@@ -69,14 +69,14 @@ def create_theme_agent(State) -> StateGraph:
 
 if __name__ == "__main__":
 
-    agents = Agents()
-    name, theme = agents.create_theme()
-    print(name, theme)
-    name, theme = agents.create_theme()
-    print(name, theme)
-    name, theme = agents.create_theme()
-    print(name, theme)
-    name, theme = agents.create_theme()
-    print(name, theme)
-    name, theme = agents.create_theme()
-    print(name, theme)
+    # agents = Agents()
+    # name, theme = agents.create_theme()
+    # print(name, theme)
+    # name, theme = agents.create_theme()
+    # print(name, theme)
+    # name, theme = agents.create_theme()
+    # print(name, theme)
+    # name, theme = agents.create_theme()
+    # print(name, theme)
+    # name, theme = agents.create_theme()
+    # print(name, theme)

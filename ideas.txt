@@ -6,3 +6,6 @@ enemies can have a backstory and personality.
 
 we can use deepseek to generate quips, and even aggro players based on their previous quips using j*******s
 
+.
+get an idea for a card. 
+look up some examples of cards with similar effects based on the idea. (RAG-ish?)
