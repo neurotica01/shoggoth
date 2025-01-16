@@ -1,0 +1,8 @@
+*I* can give chatgpt a statistical tool to roll "how good" a card should be
+
+have temperature rerolls as a powerup for cards
+
+enemies can have a backstory and personality.
+
+we can use deepseek to generate quips, and even aggro players based on their previous quips using j*******s
+

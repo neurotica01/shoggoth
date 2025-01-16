@@ -1,0 +1,3 @@
+We’re developing a Python-based roguelike deckbuilder where a Language Model (through LangChain) dynamically generates both the concept and the code for new cards. Each card is defined as a class inheriting from CardBase, and we load these classes at runtime with Python’s exec(). We incorporate balance checks (like cost and damage limits) to keep cards within reasonable bounds, and maintain a simple “Card Logic Manager” that validates and instantiates the generated classes. Initially, we’re focusing on text-based gameplay and basic systems (e.g., turn structure, card actions, and minimal UI). Later, we plan to extend this to incorporate AI-driven art generation, deeper mechanics, and more complex synergy rules between cards.
+
+Lovecraftian theme. 
