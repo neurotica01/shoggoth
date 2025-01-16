@@ -1,18 +1,13 @@
 from random import shuffle
-from state import Being
+from typing import Optional
 
-class CardBase:
-    def __init__(self, name, cost, description, requires_target=True, **kwargs):
-        self.name = name
-        self.cost = cost
-        self.description = description
-        self.requires_target = requires_target
-    def on_play(self, state, being, target):
-        """Default no-op (override in subclass)."""
-        pass
+from sqlalchemy import false
+from being import Being
+from card_base import CardBase
 
 
-def user_select_card_in_deck(game_state) -> CardBase:
+
+def user_select_card_in_deck(game_state) -> Optional[CardBase]:
     """
     Displays the cards in the player's deck, asks for user input,
     and returns the chosen card (or None on invalid).
@@ -27,14 +22,14 @@ def user_select_card_in_deck(game_state) -> CardBase:
         print(f"[{i}] {card.name} ({card.cost}): {card.description}")
 
     while True:
-        choice_str = input("Pick a card by index:")
+        choice_str = input("Pick a card by index: >")
 
         if choice_str.isdigit():
             choice = int(choice_str)
             if 0 <= choice < len(deck):
                 return deck.pop(choice)
 
-def user_select_card_in_hand(game_state) -> CardBase:
+def user_select_card_in_hand(game_state, optional: bool = False) -> Optional[CardBase]:
     """
     Displays the cards in the player's hand, asks for user input,
     and returns the chosen card (or None on invalid).
@@ -50,23 +45,25 @@ def user_select_card_in_hand(game_state) -> CardBase:
         print(f"[{i}] {card.name} ({card.cost}): {card.description}")
 
     while True:
-        choice_str = input("Pick a card by index:")
+        choice_str = input("Pick a card by index: >")
         
         if choice_str.isdigit():
             choice = int(choice_str)
             if 0 <= choice < len(hand):
                 return hand.pop(choice)
+        if optional:
+            return None
             
-def user_select_target(game_state) -> Being:
+def user_select_target(game_state) -> Optional[Being]:
     """
     Displays the enemies, asks for user input,
     and returns the chosen enemy (or None on invalid).
     """
-    for b in game_state.beings:
-        print(f"[{b.name}] {b.hp} HP")
+    for i, b in enumerate(game_state.beings):
+        print(f"[{i}] {b.name} ({b.hp} HP)")
 
     while True:
-        choice_str = input("Pick an target by index:")
+        choice_str = input("Pick an target by index: >")
         
         if choice_str.isdigit():
             choice = int(choice_str)
@@ -83,17 +80,17 @@ class BasicAttack(CardBase):
 
 class BasicBlock(CardBase):
     def __init__(self):
-        super().__init__("Basic Block", 1, "Gain 5 block.")
+        super().__init__("Basic Block", 1, "Gain 5 block.", requires_target=False)
 
     def on_play(self, game_state, being, target ):
-        being.block += self.block
+        being.block += 5
 
 class BasicHeal(CardBase):
     def __init__(self):
-        super().__init__("Basic Heal", 1, "Heal 3 health.")
+        super().__init__("Basic Heal", 1, "Heal 3 health.", requires_target=False)
 
     def on_play(self, game_state, player, target ):
-        player.hp += 3
+        game_state.heal(player, 3)
 
 class BasicDraw(CardBase):
     def __init__(self):

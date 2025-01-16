@@ -9,3 +9,6 @@ we can use deepseek to generate quips, and even aggro players based on their pre
 .
 get an idea for a card. 
 look up some examples of cards with similar effects based on the idea. (RAG-ish?)
+
+
+maybe we CAN use that toolkit
