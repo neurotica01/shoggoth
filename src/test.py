@@ -2,7 +2,7 @@ from state import State
 
 
 if __name__ == "__main__":
-    state = State()
+    state = State(lambda x: print(x))
 
     # agents = Agents()
 

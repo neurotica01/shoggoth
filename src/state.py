@@ -1,97 +1,100 @@
+from __future__ import annotations
+
+import asyncio
 from functools import reduce
 import random
 import sys
-from time import sleep
+from typing import Dict
 from agents import Agents
 from being import Being, Enemy, Player
-from card import default_deck, user_select_card_in_hand, user_select_target
+from card import default_deck
+from card_base import CardBase
 
 BEFORE_GRAVEYARD = 0
 AFTER_GRAVEYARD = 1
 
 class State:
-    def __init__(self):
-        self.player = Player( "Player", 20, deck=default_deck())
-        self.enemy = Enemy("Enemy", 20, deck=default_deck())
+    def __init__(self, log_callback, user_select):
+        self.log = log_callback
+        self.user_select = user_select
 
-        self.player.draw(4)
-        self.enemy.draw(4)
+        self.player = Player( "Player", 20, deck=default_deck(), log_hook=self.log)
+        self.enemy = Enemy("Enemy", 20, deck=default_deck(), log_hook=self.log)
 
-        self.beings = [self.player, self.enemy]
-        random.shuffle(self.beings)
+        self.beings = [self.enemy, self.player]
+        # random.shuffle(self.beings)
         
         self.turn = 0
         self.theme = []
 
         self.agents = Agents()
-        self.theme.append(self.agents.create_theme())
-        print(f"Welcome to S H O G G O T H")
-        print(f"First level: {self.theme[-1][0]}")
-        print(f"{self.theme[-1][1]}")
+        hardcoded_theme = ("Luminous Sporewatch", "A sprawling, bioluminescent fungal forest where towering mushrooms pulse with eerie light, and the air hums with the whispers of sentient spores. Strange, insectoid creatures with too many eyes scuttle between the stalks, while gelatinous, translucent beings ooze through the undergrowth, absorbing anything they touch. The vibe is unsettling yet mesmerizing, as if the forest itself is alive and watching.")
+        self.theme.append(hardcoded_theme)
+        # self.theme.append(self.agents.create_theme())
+
+
+
+    async def loop(self):
+        await self.player.draw(4)
+        await self.enemy.draw(4)
+
         while True:
-            self.loop()
-
-
-    def loop(self):
-        sleep(1)
-        self.check_win_condition()
-        self.turn += 1
-        he_who_plays = self.beings[self.turn % 2]
-
-
-        if he_who_plays == self.player:
-            self.player_turn()
-        else:
-            self.enemy_turn()
-
-
-        self.check_win_condition()
-        for status in self.enemy.statuses:
-            status.on_game_loop(self, self.enemy)
+            await self.log("\n--------------------------------\n")
             self.check_win_condition()
-        
-        for status in self.player.statuses:
-            status.on_game_loop(self, self.player)
-            self.check_win_condition()
-        
+            self.turn += 1
+            he_who_plays = self.beings[self.turn % 2]
 
-    def player_turn(self):
-        print("--------------------------------")
-        print("Player turn start\n")
-        self.player.draw(1)
+            if he_who_plays == self.player:
+                await self.player_turn()
+            else:
+                await self.enemy_turn()
+
+
+            self.check_win_condition()
+            for status in self.enemy.statuses:
+                status.on_game_loop(self, self.enemy)
+                self.check_win_condition()
+            
+            for status in self.player.statuses:
+                status.on_game_loop(self, self.player)
+                self.check_win_condition()
+            await asyncio.sleep(.5)
+
+
+    async def player_turn(self):
+        await self.log("Player turn start")
+        await self.player.draw(1)
         self.player.resources["energy"] += 2
         self.player.resources["energy"] = min(self.player.resources["energy"], 10)
         while True:
-            print(f"\nPlayer HP: {self.player.hp}, Enemy HP: {self.enemy.hp}, \nPlayer energy: {self.player.resources['energy']}")
-            card = user_select_card_in_hand(self, optional=True)
+            card = await self.user_select(self.card_selector(self.player.hand), required=False)
             if not card:
-                print("You have no cards to play or opted to skip.")
+                await self.log("You have no cards to play or opted to skip.")
                 break
             elif card.cost > self.player.resources["energy"]:
-                print("You don't have enough energy to play that card.")
+                await self.log("You don't have enough energy to play that card.")
                 self.player.hand.append(card)
                 continue
             if card and card.cost <= self.player.resources["energy"]:
                 if card.requires_target:
-                    target = user_select_target(self)
+                    target = await self.user_select(self.target_selector(), required=True)
                 else:
                     target = None
-                card.on_play(self, self.player, target)
+                await card.on_play(self, self.player, target)
                 self.player.resources["energy"] -= card.cost
                 self.check_win_condition()
-        print("Player turn over\n\n")
+        await self.log("Player turn over\n\n")
 
 
-    def enemy_turn(self):
-        print("--------------------------------")
-        print("Enemy turn start\n")
-        self.enemy.draw(1)
+    async def enemy_turn(self):
+        await self.log("Enemy turn start\n")
+        await self.enemy.draw(1)
         self.enemy.resources["energy"] += 2
         self.enemy.resources["energy"] = min(self.enemy.resources["energy"], 10)
         while True:
             viable = [card for card in self.enemy.hand if card.cost <= self.enemy.resources["energy"]]
             if not viable:
-                print("Enemy has no cards to play.")
+                await self.log("Enemy has no cards to play.")
                 return
             card = random.choice(viable)
             self.enemy.hand.remove(card)
@@ -100,10 +103,9 @@ class State:
                 target = self.player
             else:
                 target = self.enemy
-            card.on_play(self, self.enemy, target)
+            await card.on_play(self, self.enemy, target)
             self.enemy.resources["energy"] -= card.cost
             self.check_win_condition()
-        print("Enemy turn over\n\n")
 
     def check_win_condition(self):
         if self.player.hp <= 0:
@@ -112,46 +114,36 @@ class State:
             self.on_win()
 
     def on_win(self):
-        print("You win!")
+        self.log("You win!")
         sys.exit()
 
     def on_lose(self):
-        print("You lose!")
+        self.log("You lose!")
         sys.exit()
 
 
-    def deal_damage(self, source: Being, target: Being, amount: int):
-        print("\n damage calc")
-        print(f"{source.name} deals {amount} base damage to {target.name}")
+    async def deal_damage(self, source: Being, target: Being, amount: int):
+        await self.log("\n\t>damage calc")
+        await self.log(f"{source.name} deals {amount} base damage to {target.name}")
         with_source_mods = reduce(lambda x, y: y.on_deal_damage(self, source, target, x), source.statuses, amount)
-        print(f"{source.name} would deal {with_source_mods} damage to {target.name} with mods")
+        await self.log(f"{source.name} would deal {with_source_mods} damage to {target.name} with mods")
         with_target_mods = reduce(lambda x, y: y.on_take_damage(self, source, target, x), target.statuses, with_source_mods)
-        print(f"But {source.name} actually deals {with_target_mods} damage to {target.name} with target's mods")
+        await self.log(f"But {source.name} actually deals {with_target_mods} damage to {target.name} with target's mods")
         target.hp -= with_target_mods
-        print("damage calc end\n")
+        await self.log("\t>damage calc end\n")
         self.check_win_condition()
 
-    def heal(self, target: Being, amount: int):
-        print("\n heal calc")
-        print(f"{target.name} heals {amount} HP")
+    async def heal(self, target: Being, amount: int):
+        await self.log("\n\t>heal calc")
+        await self.log(f"{target.name} heals {amount} HP")
         with_target_mods = reduce(lambda x, y: y.on_heal(self, target, x), target.statuses, amount)
-        print(f"{target.name} actuallys heals {with_target_mods} HP with mods")
+        await self.log(f"{target.name} actuallys heals {with_target_mods} HP with mods")
         target.hp += with_target_mods
-        print("heal calc end\n")
+        await self.log("\t>heal calc end\n")
         self.check_win_condition()
 
-# '''
-# class Being
-# - hand: [Card]
-# - deck: [Card]
-# - health: int
-# - resources: {resource type: str, resource value: int}
-# - buffs: {buff type: str, buff value: int} 
-# - debuffs: {debuff type: str, debuff value: int}
-
-# class Player(Being): # might have addl things
-# - trinkets: [Trinket] # DAY 2 LOL
-
-# class Enemy(Being): # might have addl things like
-# - personality # these can be used for their own card generation
-# - backstory
+    def card_selector(self, cards: list[CardBase]) -> Dict[str, CardBase]:
+        return { "{}|\t{}|\t{}".format(card.name, card.cost, card.description):card for card in cards }
+    
+    def target_selector(self) -> Dict[str, Being]:
+        return { "{} ({} HP)".format(target.name, target.hp):target for target in self.beings }

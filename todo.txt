@@ -1,0 +1,5 @@
+- wtf text area is taking up all the screen
+- not all hand visible?
+- better hand display
+- status bar
+- draw log not working for osme reason

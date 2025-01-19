@@ -4,6 +4,6 @@ class CardBase:
         self.cost = cost
         self.description = description
         self.requires_target = requires_target
-    def on_play(self, state, being, target):
+    async def on_play(self, state, being, target):
         """Default no-op (override in subclass)."""
         pass
