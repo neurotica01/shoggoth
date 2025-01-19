@@ -14,7 +14,8 @@ import os
 
 
 class Agents:
-    def __init__(self):
+    def __init__(self, log):
+        self.log = log
         self.theme_agent_state = {
             "name": None,
             "theme": None,
@@ -109,7 +110,7 @@ def create_target_agent():
 
     def target_picker(state: TargetState) -> TargetState:
         card = state['card']
-        print(f"Targeting card: {card.name}, {card.description}, {card.cost} ")
+        # print(f"Targeting card: {card.name}, {card.description}, {card.cost} ")
         messages = [
             ("system", "You are a targeting system for a roguelike deckbuilding card game. I am going to give you a description and other information about a card, and you will respond with 'self' or 'enemy' as to which target the card should be played on. If the card is a buff or a heal, you should target yourself. If the card is a damage or a debuff, you should target the enemy. Only respond with 'self' or 'enemy', nothing else."),
             ("user", f"Here is the card: name: {card.name}, description: {card.description}, cost: {card.cost}, code: {inspect.getsource(card.__class__)}"),
@@ -117,7 +118,7 @@ def create_target_agent():
         response = targeting_system.invoke(messages)
         state["target"] = response.content
 
-        print(f"Targeting system response: {state['target']}")
+        # print(f"Targeting system response: {state['target']}")
         return state
 
     workflow = StateGraph(TargetState)
