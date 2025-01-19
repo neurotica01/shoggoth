@@ -1,14 +1,9 @@
-from ast import Tuple
 import asyncio
-from textwrap import wrap
-from typing import Dict, List, Optional
+from typing import Dict
 from textual.containers import HorizontalScroll, Container
 from textual.app import App, ComposeResult
-from textual.widgets import Footer, Header, Log, RichLog, OptionList, ContentSwitcher, TextArea, Static
-from textual.widget import Widget
+from textual.widgets import Footer, Header, RichLog, OptionList, Static
 from textual.widgets.option_list import Option
-from textual.events import Key
-from rich.table import Table
 
 from state import State
 
@@ -45,7 +40,8 @@ class Shoggoth(App):
         self.selection = None
 
         self.state = State(log_callback=self.log_callback,
-                           user_select=self.user_select)
+                           user_select=self.user_select,
+                           status_bar_update=self.update_status_bar)
     
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""

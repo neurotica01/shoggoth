@@ -20,15 +20,15 @@ class Being:
         n_drawn = 0
         for _ in range(amount):
             if not self.deck and not self.graveyard:
-                # await self.log(f"{self.name} has no cards to draw.", user_ack=True)
-                return n_drawn
+                await self.log(f"{self.name} has no more cards to draw.", user_ack=True)
+                break
             if len(self.deck) == 0:
                 self.deck = self.graveyard
                 self.graveyard = []
                 shuffle(self.deck)
             self.hand.append(self.deck.pop(0))
             n_drawn += 1
-        # await self.log(f"{self.name} drew {n_drawn} card" + ("s" if n_drawn > 1 else ""), user_ack=True)
+        await self.log(f"{self.name} drew {n_drawn} card" + ("s" if n_drawn != 1 else ""), user_ack=True)
         return n_drawn
 
     def discard(self, card):
@@ -36,8 +36,13 @@ class Being:
         self.graveyard.append(card)
 
     def __str__(self):
-        return f"{self.name} ({self.hp} HP)" + (f" (block {self.block})" if self.block else "") + (f" (statuses: {self.statuses})" if self.statuses else "")
-
+        res = f"{self.name} ({self.hp} HP)" 
+        if self.block:
+            res += f" (block {self.block})"
+        if self.statuses:
+            status_strs = ','.join([str(s) for s in self.statuses])
+            res += f" (statuses: {status_strs})"
+        return res
 class Player(Being):
     def __init__(self, name, hp, deck, log_hook):
         super().__init__(name, hp, deck, log_hook)

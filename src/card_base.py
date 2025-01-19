@@ -15,4 +15,4 @@ class CardBase:
         """Default no-op (override in subclass)."""
         pass
     def __str__(self):
-        return f"{self.name} ({self.cost}): {self.description}"
+        return f"{self.name} ({self.cost} energy): {self.description}"

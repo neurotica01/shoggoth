@@ -14,15 +14,15 @@ BEFORE_GRAVEYARD = 0
 AFTER_GRAVEYARD = 1
 
 class State:
-    def __init__(self, log_callback, user_select):
+    def __init__(self, log_callback, user_select, status_bar_update):
         self.log = log_callback
         self.user_select = user_select
-
+        self.status_bar_update = status_bar_update
         self.player = Player( "Player", 20, deck=default_deck(), log_hook=self.log)
         self.enemy = Enemy("Enemy", 20, deck=default_deck(), log_hook=self.log)
 
         self.beings = [self.enemy, self.player]
-        # random.shuffle(self.beings)
+        random.shuffle(self.beings)
         
         self.turn = 0
         self.theme = []
@@ -52,20 +52,24 @@ class State:
 
             self.check_win_condition()
             for status in self.enemy.statuses:
+                await self.log(f"Applying {str(status)} to {self.enemy.name}", )
                 status.on_game_loop(self, self.enemy)
                 self.check_win_condition()
             
             for status in self.player.statuses:
+                await self.log(f"Applying {str(status)} to {self.player.name}")
                 status.on_game_loop(self, self.player)
                 self.check_win_condition()
             await asyncio.sleep(.5)
 
 
     async def player_turn(self):
+        await self.log(f"Player turn start\n")
         await self.player.draw(1)
         self.player.resources["energy"] += 2
         self.player.resources["energy"] = min(self.player.resources["energy"], 10)
         while True:
+            await self.status_bar_update()
             card = await self.user_select("Select a card to play", self.card_selector(self.player.hand), required=False)
             if not card:
                 await self.log("You have no cards to play or opted to skip.")
@@ -83,10 +87,12 @@ class State:
                 await card.on_play(self, self.player, target)
                 self.player.resources["energy"] -= card.cost
                 self.check_win_condition()
-        await self.log("Player turn over\n\n")
+        await self.status_bar_update()
+        await self.log("Player turn over\n\n", user_ack=True)
 
 
     async def enemy_turn(self):
+        await self.status_bar_update()
         await self.log("Enemy turn start\n")
         await self.enemy.draw(1)
         self.enemy.resources["energy"] += 2
@@ -106,6 +112,7 @@ class State:
             await card.on_play(self, self.enemy, target)
             self.enemy.resources["energy"] -= card.cost
             self.check_win_condition()
+        await self.status_bar_update()
         await self.log("Enemy turn over\n\n", user_ack=True)
 
     def check_win_condition(self):

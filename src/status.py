@@ -20,11 +20,23 @@ class Status:
     def on_heal(self, state: State, being: Being, amount: int) -> int:
         return amount
 
+    def parent_on_game_loop(self, state: State, being: Being):
+        self.on_game_loop(state, being)
+        if not self.remaining_turns:
+            return
+        self.remaining_turns -= 1
+        if self.remaining_turns == 0:
+            being.statuses.remove(self)
+        pass
+
     def on_game_loop(self, state: State, being: Being):
         pass
 
     def __add__(self, other):
         return self.remaining_turns + other.remaining_turns
+    
+    def __str__(self):
+        return f"{self.name} ({self.remaining_turns} turn" + ("s" if self.remaining_turns != 1 else "") + ")"
 
     
 class Poison(Status):
@@ -124,7 +136,7 @@ class ShiftingNightmare(Status):
         """
         
         # 50% chance for negative effect
-        if state.random_chance(0.5):
+        if random.random() < 0.5:
             being.hp -= 2
         else:
             being.statuses.append(Berserk(remaining_turns=2))
@@ -143,3 +155,59 @@ class ShiftingNightmare(Status):
 #         for other in state.beings:
 #             if other != being:
 #                 other.hp -= 1
+
+class MaddeningWhispers(Status):
+    def __init__(self, remaining_turns: int):
+        super().__init__("Maddening Whispers", 
+                        "Each turn, has a chance to copy a random status from another being", 
+                        remaining_turns)
+
+    def on_game_loop(self, state: State, being: Being):
+        if not state.beings:
+            return
+            
+        other_beings = [b for b in state.beings if b != being]
+        if not other_beings:
+            return
+            
+        target = random.choice(other_beings)
+        if target.statuses and random.random() < 0.4:  # 40% chance
+            status_to_copy = random.choice(target.statuses)
+            being.statuses.append(status_to_copy.__class__(remaining_turns=2))
+
+class TimeDilation(Status):
+    def __init__(self, remaining_turns: int):
+        super().__init__("Time Dilation", 
+                        "Status effects tick twice per turn, but healing is reduced", 
+                        remaining_turns)
+
+    def on_game_loop(self, state: State, being: Being):
+        # Trigger all other statuses an extra time
+        for status in being.statuses:
+            if status != self:
+                status.on_game_loop(state, being)
+    
+    def on_heal(self, state: State, being: Being, amount: int) -> int:
+        return math.floor(amount * 0.5)  # Healing is halved
+
+class RealityBleed(Status):
+    def __init__(self, remaining_turns: int):
+        super().__init__("Reality Bleed", 
+                        "Damage dealt and taken becomes increasingly random", 
+                        remaining_turns)
+        self.instability = 0
+    
+    def on_deal_damage(self, state: State, source: Being, target: Being, amount: int) -> int:
+        variance = random.uniform(-self.instability, self.instability)
+        self.instability += 1
+        return math.floor(amount * (1 + variance))
+    
+    def on_take_damage(self, state: State, source: Being, target: Being, amount: int) -> int:
+        variance = random.uniform(-self.instability, self.instability)
+        self.instability += 1
+        return math.floor(amount * (1 + variance))
+
+    def __add__(self, other):
+        self.instability += other.instability
+        self.remaining_turns = max(self.remaining_turns, other.remaining_turns)
+        return self
