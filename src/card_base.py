@@ -1,9 +1,5 @@
-import uuid
-
-
 class CardBase:
     def __init__(self, name, cost, description, requires_target=True, **kwargs):
-        self.id = uuid.uuid4()
         self.name = name
         self.cost = cost
         self.description = description

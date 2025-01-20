@@ -36,7 +36,7 @@ class Being:
         self.graveyard.append(card)
 
     def __str__(self):
-        res = f"{self.name} ({self.hp} HP)" 
+        res = f"{self.name} ({self.hp} HP) ({self.resources['energy']} energy)" 
         if self.block:
             res += f" (block {self.block})"
         if self.statuses:

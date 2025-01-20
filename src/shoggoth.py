@@ -18,10 +18,10 @@ class Shoggoth(App):
         height: auto;
     }
     OptionList {
-        height: 6;
+        height: 8;
     }
     RichLog {
-        height: 12;
+        height: 26;
     }
     """
 
@@ -58,7 +58,7 @@ class Shoggoth(App):
                 )
         yield RichLog(
             id="log",
-            max_lines=100,
+            max_lines=8,
             auto_scroll=True,
             wrap=True
         )

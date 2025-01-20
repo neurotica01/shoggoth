@@ -1,0 +1,72 @@
+
+    async def player_turn(self):
+        await self.log(f"Player turn start\n")
+        await self.player.draw(1)
+        self.player.resources["energy"] += 2
+        self.player.resources["energy"] = min(self.player.resources["energy"], 10)
+        while True:
+            await self.status_bar_update()
+            card = await self.user_select("Select a card to play", self.card_selector(self.player.hand), required=False)
+            if not card:
+                await self.log("You have no cards to play or opted to skip.")
+                break
+            elif card.cost > self.player.resources["energy"]:
+                await self.log("You don't have enough energy to play that card.")
+                continue
+            if card and card.cost <= self.player.resources["energy"]:
+                if card.requires_target:
+                    target = await self.user_select("Select a target", self.target_selector(), required=True)
+                else:
+                    target = None
+                await self.log(f"{self.player.name} plays {str(card)}", user_ack=True)
+                await card.on_play(self, self.player, target)
+                self.player.hand.remove(card)
+                self.player.resources["energy"] -= card.cost
+                self.check_win_condition()
+        await self.status_bar_update()
+        await self.log("Player turn over\n\n", user_ack=True)
+
+
+    async def enemy_turn(self):
+        await self.status_bar_update()
+        await self.log("Enemy turn start\n")
+        await self.enemy.draw(1)
+        self.enemy.resources["energy"] += 2
+        self.enemy.resources["energy"] = min(self.enemy.resources["energy"], 10)
+        while True:
+            viable = [card for card in self.enemy.hand if card.cost <= self.enemy.resources["energy"]]
+            if not viable:
+                break
+            card = random.choice(viable)
+            self.enemy.hand.remove(card)
+            # This is from the perspective of the enemy
+            if self.agents.target(card) == "enemy":
+                target = self.player
+            else:
+                target = self.enemy
+            await self.log(f"{self.enemy.name} plays {str(card)}")
+            await card.on_play(self, self.enemy, target)
+            self.enemy.resources["energy"] -= card.cost
+            self.check_win_condition()
+        await self.status_bar_update()
+        await self.log("Enemy turn over\n\n", user_ack=True)
+
+        
+    # if he_who_plays == self.player:
+    #     await self.player_turn()
+    # else:
+    #     await self.enemy_turn()
+
+
+
+    # self.check_win_condition()
+    # for status in self.enemy.statuses:
+    #     await self.log(f"Applying {str(status)} to {self.enemy.name}", )
+    #     status.on_game_loop(self, self.enemy)
+    #     self.check_win_condition()
+    
+    # for status in self.player.statuses:
+    #     await self.log(f"Applying {str(status)} to {self.player.name}")
+    #     status.on_game_loop(self, self.player)
+    #     self.check_win_condition()
+    # await asyncio.sleep(.5)

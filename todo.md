@@ -1,0 +1,7 @@
+- [ ] not all hand visible?
+- [ ] better hand display
+- [ ] statuses not addative in the right way
+- [ ] status should probably only be on the being who's turn it is
+- [ ] lookup / glossary
+- [ ] card uniqueness
+- [ ] LLM call indicator
