@@ -15,11 +15,6 @@ class State:
         self.log = log_callback
         self.user_select = user_select
         self.status_bar_update = status_bar_update
-        self.player = Player( "Player", 20, deck=default_deck(), log_hook=self.log)
-        self.enemy = Enemy("Enemy", 20, deck=default_deck(), log_hook=self.log)
-
-        self.beings = [self.enemy, self.player]
-        random.shuffle(self.beings)
         
         self.turn = 0
         self.theme = []
@@ -28,6 +23,15 @@ class State:
         hardcoded_theme = ("Luminous Sporewatch", "A sprawling, bioluminescent fungal forest where towering mushrooms pulse with eerie light, and the air hums with the whispers of sentient spores. Strange, insectoid creatures with too many eyes scuttle between the stalks, while gelatinous, translucent beings ooze through the undergrowth, absorbing anything they touch. The vibe is unsettling yet mesmerizing, as if the forest itself is alive and watching.")
         self.theme.append(hardcoded_theme)
         # self.theme.append(self.agents.create_theme())
+
+        self.player = Player( "Player", 20, deck=default_deck(), log_hook=self.log)
+        
+        enemy_name, enemy_backstory, enemy_personality, _ = self.agents.generate_enemy(self.theme[0][1])
+        self.enemy = Enemy(enemy_name, 20, deck=default_deck(), log_hook=self.log, personality=enemy_personality, backstory=enemy_backstory)
+
+        self.beings = [self.enemy, self.player]
+        random.shuffle(self.beings)
+
 
     def status(self):
         return str(self.player) + "\n" + str(self.enemy)

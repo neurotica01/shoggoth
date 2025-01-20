@@ -49,7 +49,7 @@ class Player(Being):
         self.trinkets = []
 
 class Enemy(Being):
-    def __init__(self, name, hp, deck, log_hook):
+    def __init__(self, name, hp, deck, log_hook, personality, backstory):
         super().__init__(name, hp, deck, log_hook)
-        self.personality = ""
-        self.backstory = ""
+        self.personality = personality
+        self.backstory = backstory
