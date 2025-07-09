@@ -67,9 +67,9 @@ class Agents:
         
         return theme_name, theme_description
 
-    def target(self, card: CardBase) -> Literal["self", "enemy"]:
+    async def target(self, card: CardBase) -> Literal["self", "enemy"]:
         context = TargetContext(card=card)
-        result = self.target_agent.run_sync(
+        result = await self.target_agent.run(
             f"Here is the card: name: {card.name}, description: {card.description}, cost: {card.cost}, code: {inspect.getsource(card.__class__)}", 
             deps=context
         )
@@ -144,7 +144,7 @@ class Agents:
 
 def create_theme_generator_agent():
     return Agent(
-        'anthropic:claude-3-5-sonnet-20240620',
+        'openai:o4-mini-2025-04-16',
         output_type=str,
         deps_type=ThemeGenerationContext,
         system_prompt="""You are a theme generator for a roguelike deckbuilding card game. It has a lovecraftian, eldritch theme, also pynchonian whimsy, postmodernism, and paranoia. 
@@ -157,7 +157,7 @@ def create_theme_generator_agent():
 
 def create_theme_namer_agent():
     return Agent(
-        'anthropic:claude-3-5-sonnet-20240620',
+        'openai:gpt-4o',
         output_type=str,
         system_prompt="""Your job is to name a level based on a given theme for a roguelike deckbuilding card game.
         The name should be 1-2 words. It could be a proper noun or a noun-adjective pair. For instance, 'The City of the Dead', 
@@ -168,7 +168,7 @@ def create_theme_namer_agent():
 
 def create_target_agent():
     return Agent(
-        'openai:deepseek-chat',
+        'openai:gpt-4o',
         output_type=TargetResult,
         deps_type=TargetContext,
         system_prompt="You are a targeting system for a roguelike deckbuilding card game. I am going to give you a description and other information about a card, and you will respond with 'self' or 'enemy' as to which target the card should be played on. If the card is a buff or a heal, you should target yourself. If the card is a damage or a debuff, you should target the enemy. Only respond with 'self' or 'enemy', nothing else.",
@@ -194,7 +194,7 @@ def get_random_arcana() -> str:
 
 def create_enemy_generator():
     return Agent(
-        'openai:deepseek-chat',
+        'openai:o4-mini-2025-04-16',
         output_type=EnemyResult,
         deps_type=EnemyGenerationContext,
         system_prompt="""You are a generator for a Lovecraftian/Eldritch horror roguelike card game. Generate a name and short backstory 
@@ -207,7 +207,7 @@ def create_enemy_generator():
 
 def create_card_generator_agent():
     return Agent(
-        'anthropic:claude-3-5-sonnet-20240620',
+        'openai:o4-mini-2025-04-16',
         output_type=str,
         system_prompt="""You are a card generator for a Lovecraftian/Eldritch horror roguelike card game. 
         You will be given information about an enemy and the level they're in, along with their personality traits and backstory.

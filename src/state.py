@@ -87,7 +87,7 @@ class State:
                 if is_player:
                     target = await self.user_select("Select a target", self.target_selector(), required=True)
                 else:
-                    target = self.player if self.agents.target(card) == "enemy" else being
+                    target = self.player if await self.agents.target(card) == "enemy" else being
             else:
                 target = None
 
