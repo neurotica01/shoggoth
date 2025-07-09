@@ -1,0 +1,1345 @@
+TITLE: Handling Diverse Function Tool Outputs in Pydantic-AI
+DESCRIPTION: This Python example illustrates how `pydantic-ai` function tools can return a variety of data types beyond simple strings, including `datetime` objects, custom Pydantic `BaseModel` instances, `ImageUrl`, and `DocumentUrl`. It demonstrates the agent's ability to process and interpret these structured and multi-modal outputs, with Pydantic handling serialization to JSON for models that expect string outputs. The example showcases retrieving current time, user details, a company logo, and document content.
+SOURCE: https://ai.pydantic.dev/tools
+
+LANGUAGE: Python
+CODE:
+```
+from datetime import datetime
+
+from pydantic import BaseModel
+
+from pydantic_ai import Agent, DocumentUrl, ImageUrl
+from pydantic_ai.models.openai import OpenAIResponsesModel
+
+class User(BaseModel):
+    name: str
+    age: int
+
+agent = Agent(model=OpenAIResponsesModel('gpt-4o'))
+
+@agent.tool_plain
+def get_current_time() -> datetime:
+    return datetime.now()
+
+@agent.tool_plain
+def get_user() -> User:
+    return User(name='John', age=30)
+
+@agent.tool_plain
+def get_company_logo() -> ImageUrl:
+    return ImageUrl(url='https://iili.io/3Hs4FMg.png')
+
+@agent.tool_plain
+def get_document() -> DocumentUrl:
+    return DocumentUrl(url='https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf')
+
+result = agent.run_sync('What time is it?')
+print(result.output)
+#> The current time is 10:45 PM on April 17, 2025.
+
+result = agent.run_sync('What is the user name?')
+print(result.output)
+#> The user's name is John.
+
+result = agent.run_sync('What is the company name in the logo?')
+print(result.output)
+#> The company name in the logo is "Pydantic."
+
+result = agent.run_sync('What is the main content of the document?')
+print(result.output)
+#> The document contains just the text "Dummy PDF file."
+```
+
+----------------------------------------
+
+TITLE: Configure PydanticAI with Vertex AI using Application Default Credentials
+DESCRIPTION: This snippet demonstrates how to initialize `GeminiModel` for use with Google Vertex AI when Application Default Credentials (ADC) are configured. It leverages `gcloud` CLI setup for automatic authentication, deferring credential loading until `agent.run()` is called.
+SOURCE: https://ai.pydantic.dev/models/gemini
+
+LANGUAGE: Python
+CODE:
+```
+from pydantic_ai import Agent
+from pydantic_ai.models.gemini import GeminiModel
+
+model = GeminiModel('gemini-2.0-flash', provider='google-vertex')
+agent = Agent(model)
+...
+```
+
+----------------------------------------
+
+TITLE: Registering Function Tools with Pydantic-AI Agent Constructor
+DESCRIPTION: This Python example demonstrates two methods for registering function tools (`roll_die`, `get_player_name`) with the `pydantic-ai` Agent constructor using the `tools` argument. It shows how to pass a list of functions directly, allowing the Agent to inspect signatures for `RunContext` dependency, or use the `Tool` class for more explicit control over tool definitions like `takes_ctx`. The agent then uses these tools to simulate a dice game, interacting with user input and dependencies.
+SOURCE: https://ai.pydantic.dev/tools
+
+LANGUAGE: Python
+CODE:
+```
+import random
+
+from pydantic_ai import Agent, RunContext, Tool
+
+system_prompt = """
+You're a dice game, you should roll the die and see if the number
+you get back matches the user's guess. If so, tell them they're a winner.
+Use the player's name in the response.
+"""
+
+def roll_die() -> str:
+    """Roll a six-sided die and return the result."""
+    return str(random.randint(1, 6))
+
+def get_player_name(ctx: RunContext[str]) -> str:
+    """Get the player's name."""
+    return ctx.deps
+
+agent_a = Agent(
+    'google-gla:gemini-1.5-flash',
+    deps_type=str,
+    tools=[roll_die, get_player_name],
+    system_prompt=system_prompt,
+)
+agent_b = Agent(
+    'google-gla:gemini-1.5-flash',
+    deps_type=str,
+    tools=[
+        Tool(roll_die, takes_ctx=False),
+        Tool(get_player_name, takes_ctx=True),
+    ],
+    system_prompt=system_prompt,
+)
+
+dice_result = {}
+dice_result['a'] = agent_a.run_sync('My guess is 6', deps='Yashar')
+dice_result['b'] = agent_b.run_sync('My guess is 4', deps='Anne')
+print(dice_result['a'].output)
+#> Tough luck, Yashar, you rolled a 4. Better luck next time.
+print(dice_result['b'].output)
+#> Congratulations Anne, you guessed correctly! You're a winner!
+```
+
+----------------------------------------
+
+TITLE: Stream Complete Text Responses with pydantic_ai Agent
+DESCRIPTION: This snippet demonstrates how to stream complete text responses from an AI agent using `pydantic_ai`. It initializes an `Agent` and uses `run_stream` to get a `StreamedRunResult`, then iterates over `stream_text()` to print the incrementally growing full response. This method provides the entire accumulated text with each update.
+SOURCE: https://ai.pydantic.dev/result
+
+LANGUAGE: Python
+CODE:
+```
+from pydantic_ai import Agent
+
+agent = Agent('google-gla:gemini-1.5-flash')
+
+async def main():
+    async with agent.run_stream('Where does "hello world" come from?') as result:
+        async for message in result.stream_text():
+            print(message)
+            #> The first known
+            #> The first known use of "hello,"
+            #> The first known use of "hello, world" was in
+            #> The first known use of "hello, world" was in a 1974 textbook
+            #> The first known use of "hello, world" was in a 1974 textbook about the C
+            #> The first known use of "hello, world" was in a 1974 textbook about the C programming language.
+```
+
+----------------------------------------
+
+TITLE: Configure Agent with Union of List Types for Dynamic Extraction
+DESCRIPTION: This Python example illustrates using a `Union` of list types (`Union[list[str], list[int]]`) as the `output_type` for an `Agent`. It demonstrates how the agent can dynamically extract either a list of strings (colors) or a list of integers (sizes) based on the input, while also addressing static type checker warnings by explicitly specifying generic parameters on the `Agent` constructor.
+SOURCE: https://ai.pydantic.dev/result
+
+LANGUAGE: Python
+CODE:
+```
+from typing import Union
+
+from pydantic_ai import Agent
+
+agent = Agent[None, Union[list[str], list[int]]](
+    'openai:gpt-4o-mini',
+    output_type=Union[list[str], list[int]],  # type: ignore
+    system_prompt='Extract either colors or sizes from the shapes provided.',
+)
+
+result = agent.run_sync('red square, blue circle, green triangle')
+print(result.output)
+#> ['red', 'blue', 'green']
+
+result = agent.run_sync('square size 10, circle size 20, triangle size 30')
+print(result.output)
+#> [10, 20, 30]
+```
+
+----------------------------------------
+
+TITLE: Stream Text Deltas with pydantic_ai Agent
+DESCRIPTION: This example illustrates how to stream text responses as deltas using `pydantic_ai`. By setting `delta=True` in `stream_text()`, only the new portions of the text are yielded with each update, rather than the entire accumulated response. This can be more efficient for certain display scenarios.
+SOURCE: https://ai.pydantic.dev/result
+
+LANGUAGE: Python
+CODE:
+```
+from pydantic_ai import Agent
+
+agent = Agent('google-gla:gemini-1.5-flash')
+
+async def main():
+    async with agent.run_stream('Where does "hello world" come from?') as result:
+        async for message in result.stream_text(delta=True):
+            print(message)
+            #> The first known
+            #> use of "hello,"
+            #> world" was in
+            #> a 1974 textbook
+            #> about the C
+            #> programming language.
+```
+
+----------------------------------------
+
+TITLE: Install pydantic-graph library
+DESCRIPTION: Instructions to install the `pydantic-graph` library, a required dependency of `pydantic-ai` and an optional dependency of `pydantic-ai-slim`, using pip or uv.
+SOURCE: https://ai.pydantic.dev/graph
+
+LANGUAGE: Python
+CODE:
+```
+pip install pydantic-graph
+```
+
+LANGUAGE: Python
+CODE:
+```
+uv add pydantic-graph
+```
+
+----------------------------------------
+
+TITLE: Flight Booking Multi-Agent Python Implementation
+DESCRIPTION: Full Python source code for the flight booking application, showcasing `pydantic_ai` agents, tool integration, output validation, and handling of flight details and seat preferences.
+SOURCE: https://ai.pydantic.dev/examples/flight-booking
+
+LANGUAGE: python
+CODE:
+```
+import datetime
+from dataclasses import dataclass
+from typing import Literal
+
+import logfire
+from pydantic import BaseModel, Field
+from rich.prompt import Prompt
+
+from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.messages import ModelMessage
+from pydantic_ai.usage import Usage, UsageLimits
+
+# 'if-token-present' means nothing will be sent (and the example will work) if you don't have logfire configured
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_pydantic_ai()
+
+class FlightDetails(BaseModel):
+    """Details of the most suitable flight."""
+
+    flight_number: str
+    price: int
+    origin: str = Field(description='Three-letter airport code')
+    destination: str = Field(description='Three-letter airport code')
+    date: datetime.date
+
+class NoFlightFound(BaseModel):
+    """When no valid flight is found."""
+
+@dataclass
+class Deps:
+    web_page_text: str
+    req_origin: str
+    req_destination: str
+    req_date: datetime.date
+
+# This agent is responsible for controlling the flow of the conversation.
+search_agent = Agent[Deps, FlightDetails | NoFlightFound](
+    'openai:gpt-4o',
+    output_type=FlightDetails | NoFlightFound,  # type: ignore
+    retries=4,
+    system_prompt=(
+        'Your job is to find the cheapest flight for the user on the given date. '
+    ),
+)
+
+# This agent is responsible for extracting flight details from web page text.
+extraction_agent = Agent(
+    'openai:gpt-4o',
+    output_type=list[FlightDetails],
+    system_prompt='Extract all the flight details from the given text.',
+)
+
+@search_agent.tool
+async def extract_flights(ctx: RunContext[Deps]) -> list[FlightDetails]:
+    """Get details of all flights."""
+    # we pass the usage to the search agent so requests within this agent are counted
+    result = await extraction_agent.run(ctx.deps.web_page_text, usage=ctx.usage)
+    logfire.info('found {flight_count} flights', flight_count=len(result.output))
+    return result.output
+
+@search_agent.output_validator
+async def validate_output(
+    ctx: RunContext[Deps], output: FlightDetails | NoFlightFound
+) -> FlightDetails | NoFlightFound:
+    """Procedural validation that the flight meets the constraints."""
+    if isinstance(output, NoFlightFound):
+        return output
+
+    errors: list[str] = []
+    if output.origin != ctx.deps.req_origin:
+        errors.append(
+            f'Flight should have origin {ctx.deps.req_origin}, not {output.origin}'
+        )
+    if output.destination != ctx.deps.req_destination:
+        errors.append(
+            f'Flight should have destination {ctx.deps.req_destination}, not {output.destination}'
+        )
+    if output.date != ctx.deps.req_date:
+        errors.append(f'Flight should be on {ctx.deps.req_date}, not {output.date}')
+
+    if errors:
+        raise ModelRetry('\n'.join(errors))
+    else:
+        return output
+
+class SeatPreference(BaseModel):
+    row: int = Field(ge=1, le=30)
+    seat: Literal['A', 'B', 'C', 'D', 'E', 'F']
+
+class Failed(BaseModel):
+    """Unable to extract a seat selection."""
+
+# This agent is responsible for extracting the user's seat selection
+seat_preference_agent = Agent[None, SeatPreference | Failed](
+    'openai:gpt-4o',
+    output_type=SeatPreference | Failed,  # type: ignore
+    system_prompt=(
+        "Extract the user's seat preference. "
+        'Seats A and F are window seats. '
+        'Row 1 is the front row and has extra leg room. '
+        'Rows 14, and 20 also have extra leg room. '
+    ),
+)
+
+# in reality this would be downloaded from a booking site,
+```
+
+----------------------------------------
+
+TITLE: Initialize Pydantic-AI Weather Agent
+DESCRIPTION: This code initializes the weather agent using the 'openai:gpt-4o' model. It provides specific instructions for tool usage, ensuring the agent first retrieves coordinates and then fetches weather data. The `deps_type` is set to `Deps` for dependency injection, and `retries` are configured for robustness.
+SOURCE: https://ai.pydantic.dev/examples/weather-agent
+
+LANGUAGE: Python
+CODE:
+```
+weather_agent = Agent(
+    'openai:gpt-4o',
+    instructions=(
+        'Be concise, reply with one sentence.'
+        'Use the `get_lat_lng` tool to get the latitude and longitude of the locations, '
+        'then use the `get_weather` tool to get the weather.'
+    ),
+    deps_type=Deps,
+    retries=2,
+)
+```
+
+----------------------------------------
+
+TITLE: Gradio UI Implementation for Pydantic AI Weather Assistant
+DESCRIPTION: This Python code defines a Gradio user interface for an AI-powered weather assistant. It manages the chat flow, displays real-time updates including tool calls and their outputs, and handles user interactions like retries and undo. The assistant leverages external geocoding and weather APIs, requiring API keys configured as environment variables.
+SOURCE: https://ai.pydantic.dev/examples/weather-agent
+
+LANGUAGE: Python
+CODE:
+```
+from __future__ import annotations as _annotations
+
+import json
+import os
+
+from httpx import AsyncClient
+
+from pydantic_ai.messages import ToolCallPart, ToolReturnPart
+from pydantic_ai_examples.weather_agent import Deps, weather_agent
+
+try:
+    import gradio as gr
+except ImportError as e:
+    raise ImportError(
+        'Please install gradio with `pip install gradio`. You must use python>=3.10.'
+    ) from e
+
+TOOL_TO_DISPLAY_NAME = {'get_lat_lng': 'Geocoding API', 'get_weather': 'Weather API'}
+
+client = AsyncClient()
+weather_api_key = os.getenv('WEATHER_API_KEY')
+# create a free API key at https://geocode.maps.co/
+geo_api_key = os.getenv('GEO_API_KEY')
+deps = Deps(client=client, weather_api_key=weather_api_key, geo_api_key=geo_api_key)
+
+async def stream_from_agent(prompt: str, chatbot: list[dict], past_messages: list):
+    chatbot.append({'role': 'user', 'content': prompt})
+    yield gr.Textbox(interactive=False, value=''), chatbot, gr.skip()
+    async with weather_agent.run_stream(
+        prompt, deps=deps, message_history=past_messages
+    ) as result:
+        for message in result.new_messages():
+            for call in message.parts:
+                if isinstance(call, ToolCallPart):
+                    call_args = call.args_as_json_str()
+                    metadata = {
+                        'title': f'🛠️ Using {TOOL_TO_DISPLAY_NAME[call.tool_name]}',
+                    }
+                    if call.tool_call_id is not None:
+                        metadata['id'] = call.tool_call_id
+
+                    gr_message = {
+                        'role': 'assistant',
+                        'content': 'Parameters: ' + call_args,
+                        'metadata': metadata,
+                    }
+                    chatbot.append(gr_message)
+                if isinstance(call, ToolReturnPart):
+                    for gr_message in chatbot:
+                        if (
+                            gr_message.get('metadata', {}).get('id', '')
+                            == call.tool_call_id
+                        ):
+                            gr_message['content'] += (
+                                f'\nOutput: {json.dumps(call.content)}'
+                            )
+                yield gr.skip(), chatbot, gr.skip()
+        chatbot.append({'role': 'assistant', 'content': ''})
+        async for message in result.stream_text():
+            chatbot[-1]['content'] = message
+            yield gr.skip(), chatbot, gr.skip()
+        past_messages = result.all_messages()
+
+        yield gr.Textbox(interactive=True), gr.skip(), past_messages
+
+async def handle_retry(chatbot, past_messages: list, retry_data: gr.RetryData):
+    new_history = chatbot[: retry_data.index]
+    previous_prompt = chatbot[retry_data.index]['content']
+    past_messages = past_messages[: retry_data.index]
+    async for update in stream_from_agent(previous_prompt, new_history, past_messages):
+        yield update
+
+def undo(chatbot, past_messages: list, undo_data: gr.UndoData):
+    new_history = chatbot[: undo_data.index]
+    past_messages = past_messages[: undo_data.index]
+    return chatbot[undo_data.index]['content'], new_history, past_messages
+
+def select_data(message: gr.SelectData) -> str:
+    return message.value['text']
+
+with gr.Blocks() as demo:
+    gr.HTML(
+        """
+<div style="display: flex; justify-content: center; align-items: center; gap: 2rem; padding: 1rem; width: 100%">
+    <img src="https://ai.pydantic.dev/img/logo-white.svg" style="max-width: 200px; height: auto">
+    <div>
+        <h1 style="margin: 0 0 1rem 0">Weather Assistant</h1>
+        <h3 style="margin: 0 0 0.5rem 0">
+            This assistant answer your weather questions.
+        </h3>
+    </div>
+</div>
+"""
+    )
+    past_messages = gr.State([])
+    chatbot = gr.Chatbot(
+        label='Packing Assistant',
+        type='messages',
+        avatar_images=(None, 'https://ai.pydantic.dev/img/logo-white.svg'),
+        examples=[
+            {'text': 'What is the weather like in Miami?'},
+            {'text': 'What is the weather like in London?'}
+        ]
+    )
+    with gr.Row():
+        prompt = gr.Textbox(
+            lines=1,
+            show_label=False,
+            placeholder='What is the weather like in New York City?'
+        )
+    generation = prompt.submit(
+        stream_from_agent,
+        inputs=[prompt, chatbot, past_messages],
+        outputs=[prompt, chatbot, past_messages]
+    )
+    chatbot.example_select(select_data, None, [prompt])
+    chatbot.retry(
+        handle_retry, [chatbot, past_messages], [prompt, chatbot, past_messages]
+    )
+    chatbot.undo(undo, [chatbot, past_messages], [prompt, chatbot, past_messages])
+
+if __name__ == '__main__':
+    demo.launch()
+```
+
+----------------------------------------
+
+TITLE: Python PydanticAI Email Feedback Graph Implementation
+DESCRIPTION: Complete Python code for the GenAI email feedback graph. It defines `User`, `Email`, and `State` dataclasses, initializes `email_writer_agent` and `feedback_agent` using `pydantic_ai.Agent`, and implements `WriteEmail` and `Feedback` nodes within a `pydantic_graph.Graph` to manage the email generation and review process.
+SOURCE: https://ai.pydantic.dev/graph
+
+LANGUAGE: Python
+CODE:
+```
+from __future__ import annotations as _annotations
+
+from dataclasses import dataclass, field
+
+from pydantic import BaseModel, EmailStr
+
+from pydantic_ai import Agent, format_as_xml
+from pydantic_ai.messages import ModelMessage
+from pydantic_graph import BaseNode, End, Graph, GraphRunContext
+
+@dataclass
+class User:
+    name: str
+    email: EmailStr
+    interests: list[str]
+
+@dataclass
+class Email:
+    subject: str
+    body: str
+
+@dataclass
+class State:
+    user: User
+    write_agent_messages: list[ModelMessage] = field(default_factory=list)
+
+email_writer_agent = Agent(
+    'google-vertex:gemini-1.5-pro',
+    output_type=Email,
+    system_prompt='Write a welcome email to our tech blog.',
+)
+
+@dataclass
+class WriteEmail(BaseNode[State]):
+    email_feedback: str | None = None
+
+    async def run(self, ctx: GraphRunContext[State]) -> Feedback:
+        if self.email_feedback:
+            prompt = (
+                f'Rewrite the email for the user:\n'
+                f'{format_as_xml(ctx.state.user)}\n'
+                f'Feedback: {self.email_feedback}'
+            )
+        else:
+            prompt = (
+                f'Write a welcome email for the user:\n'
+                f'{format_as_xml(ctx.state.user)}'
+            )
+
+        result = await email_writer_agent.run(
+            prompt,
+            message_history=ctx.state.write_agent_messages,
+        )
+        ctx.state.write_agent_messages += result.new_messages()
+        return Feedback(result.output)
+
+class EmailRequiresWrite(BaseModel):
+    feedback: str
+
+class EmailOk(BaseModel):
+    pass
+
+feedback_agent = Agent[None, EmailRequiresWrite | EmailOk](
+    'openai:gpt-4o',
+    output_type=EmailRequiresWrite | EmailOk,  # type: ignore
+    system_prompt=(
+        'Review the email and provide feedback, email must reference the users specific interests.'
+    ),
+)
+
+@dataclass
+class Feedback(BaseNode[State, None, Email]):
+    email: Email
+
+    async def run(
+        self,
+        ctx: GraphRunContext[State],
+    ) -> WriteEmail | End[Email]:
+        prompt = format_as_xml({'user': ctx.state.user, 'email': self.email})
+        result = await feedback_agent.run(prompt)
+        if isinstance(result.output, EmailRequiresWrite):
+            return WriteEmail(email_feedback=result.output.feedback)
+        else:
+            return End(self.email)
+
+async def main():
+    user = User(
+        name='John Doe',
+        email='john.joe@example.com',
+        interests=['Haskel', 'Lisp', 'Fortran'],
+    )
+    state = State(user)
+    feedback_graph = Graph(nodes=(WriteEmail, Feedback))
+    result = await feedback_graph.run(WriteEmail(), state=state)
+    print(result.output)
+    """
+    Email(
+        subject='Welcome to our tech blog!',
+        body='Hello John, Welcome to our tech blog! ...',
+    )
+    """
+```
+
+----------------------------------------
+
+TITLE: Pydantic AI Bank Support Agent Implementation (bank_support.py)
+DESCRIPTION: This Python code defines the core logic for a Pydantic AI bank support agent. It includes a mock `DatabaseConn` class for customer data, `SupportDependencies` for agent context, and `SupportOutput` for structured responses. The `Agent` is configured with a system prompt and tools like `customer_balance` to interact with the database and provide support advice.
+SOURCE: https://ai.pydantic.dev/examples/bank-support
+
+LANGUAGE: python
+CODE:
+```
+from dataclasses import dataclass
+
+from pydantic import BaseModel, Field
+
+from pydantic_ai import Agent, RunContext
+
+class DatabaseConn:
+    """This is a fake database for example purposes.
+
+    In reality, you'd be connecting to an external database
+    (e.g. PostgreSQL) to get information about customers.
+    """
+
+    @classmethod
+    async def customer_name(cls, *, id: int) -> str | None:
+        if id == 123:
+            return 'John'
+
+    @classmethod
+    async def customer_balance(cls, *, id: int, include_pending: bool) -> float:
+        if id == 123 and include_pending:
+            return 123.45
+        else:
+            raise ValueError('Customer not found')
+
+@dataclass
+class SupportDependencies:
+    customer_id: int
+    db: DatabaseConn
+
+class SupportOutput(BaseModel):
+    support_advice: str = Field(description='Advice returned to the customer')
+    block_card: bool = Field(description='Whether to block their card or not')
+    risk: int = Field(description='Risk level of query', ge=0, le=10)
+
+support_agent = Agent(
+    'openai:gpt-4o',
+    deps_type=SupportDependencies,
+    output_type=SupportOutput,
+    system_prompt=(
+        'You are a support agent in our bank, give the '
+        'customer support and judge the risk level of their query. '
+        "Reply using the customer's name."
+    ),
+)
+
+@support_agent.system_prompt
+async def add_customer_name(ctx: RunContext[SupportDependencies]) -> str:
+    customer_name = await ctx.deps.db.customer_name(id=ctx.deps.customer_id)
+    return f"The customer's name is {customer_name!r}"
+
+@support_agent.tool
+async def customer_balance(
+    ctx: RunContext[SupportDependencies], include_pending: bool
+) -> str:
+    """Returns the customer's current account balance."""
+    balance = await ctx.deps.db.customer_balance(
+        id=ctx.deps.customer_id,
+        include_pending=include_pending,
+    )
+    return f'${balance:.2f}'
+
+if __name__ == '__main__':
+    deps = SupportDependencies(customer_id=123, db=DatabaseConn())
+    result = support_agent.run_sync('What is my balance?', deps=deps)
+    print(result.output)
+    """
+    support_advice='Hello John, your current account balance, including pending transactions, is $123.45.' block_card=False risk=1
+    """
+
+    result = support_agent.run_sync('I just lost my card!', deps=deps)
+    print(result.output)
+    """
+    support_advice="I'm sorry to hear that, John. We are temporarily blocking your card to prevent unauthorized transactions." block_card=True risk=8
+    """
+```
+
+----------------------------------------
+
+TITLE: Add Built-in and Custom Evaluators to a Dataset
+DESCRIPTION: This example illustrates how to attach built-in evaluators like `IsInstance` to a dataset using `add_evaluator`. It also shows how to define a custom evaluator by subclassing `Evaluator` and implementing the `evaluate` method to calculate a score based on output matching expected output.
+SOURCE: https://ai.pydantic.dev/evals
+
+LANGUAGE: Python
+CODE:
+```
+from dataclasses import dataclass
+
+from simple_eval_dataset import dataset
+
+from pydantic_evals.evaluators import Evaluator, EvaluatorContext
+from pydantic_evals.evaluators.common import IsInstance
+
+dataset.add_evaluator(IsInstance(type_name='str'))
+
+@dataclass
+class MyEvaluator(Evaluator):
+    async def evaluate(self, ctx: EvaluatorContext[str, str]) -> float:
+        if ctx.output == ctx.expected_output:
+            return 1.0
+        elif (
+            isinstance(ctx.output, str)
+            and ctx.expected_output.lower() in ctx.output.lower()
+        ):
+            return 0.8
+        else:
+            return 0.0
+
+dataset.add_evaluator(MyEvaluator())
+```
+
+----------------------------------------
+
+TITLE: Pydantic-AI SQL Generation Agent (`sql_gen.py`) Source Code
+DESCRIPTION: The complete Python source code for the `sql_gen.py` module. It defines the Pydantic models for `Success` and `InvalidRequest` responses, the PostgreSQL `records` table schema, and example SQL requests. The code also implements the Pydantic-AI agent, including its system prompt, output validation (checking for `SELECT` queries and executing `EXPLAIN` on PostgreSQL), and the main execution logic.
+SOURCE: https://ai.pydantic.dev/examples/sql-gen
+
+LANGUAGE: python
+CODE:
+```
+import asyncio
+import sys
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from datetime import date
+from typing import Annotated, Any, Union
+
+import asyncpg
+import logfire
+from annotated_types import MinLen
+from devtools import debug
+from pydantic import BaseModel, Field
+from typing_extensions import TypeAlias
+
+from pydantic_ai import Agent, ModelRetry, RunContext, format_as_xml
+
+# 'if-token-present' means nothing will be sent (and the example will work) if you don't have logfire configured
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_asyncpg()
+logfire.instrument_pydantic_ai()
+
+DB_SCHEMA = """
+CREATE TABLE records (
+    created_at timestamptz,
+    start_timestamp timestamptz,
+    end_timestamp timestamptz,
+    trace_id text,
+    span_id text,
+    parent_span_id text,
+    level log_level,
+    span_name text,
+    message text,
+    attributes_json_schema text,
+    attributes jsonb,
+    tags text[],
+    is_exception boolean,
+    otel_status_message text,
+    service_name text
+);
+"""
+SQL_EXAMPLES = [
+    {
+        'request': 'show me records where foobar is false',
+        'response': "SELECT * FROM records WHERE attributes->>'foobar' = false",
+    },
+    {
+        'request': 'show me records where attributes include the key \"foobar\"',
+        'response': "SELECT * FROM records WHERE attributes ? 'foobar'",
+    },
+    {
+        'request': 'show me records from yesterday',
+        'response': "SELECT * FROM records WHERE start_timestamp::date > CURRENT_TIMESTAMP - INTERVAL '1 day'",
+    },
+    {
+        'request': 'show me error records with the tag \"foobar\"',
+        'response': "SELECT * FROM records WHERE level = 'error' and 'foobar' = ANY(tags)",
+    },
+]
+
+@dataclass
+class Deps:
+    conn: asyncpg.Connection
+
+class Success(BaseModel):
+    """Response when SQL could be successfully generated."""
+
+    sql_query: Annotated[str, MinLen(1)]
+    explanation: str = Field(
+        '', description='Explanation of the SQL query, as markdown'
+    )
+
+class InvalidRequest(BaseModel):
+    """Response the user input didn't include enough information to generate SQL."""
+
+    error_message: str
+
+Response: TypeAlias = Union[Success, InvalidRequest]
+agent = Agent[Deps, Response](
+    'google-gla:gemini-1.5-flash',
+    # Type ignore while we wait for PEP-0747, nonetheless unions will work fine everywhere else
+    output_type=Response,  # type: ignore
+    deps_type=Deps,
+)
+
+@agent.system_prompt
+async def system_prompt() -> str:
+    return f"""\
+Given the following PostgreSQL table of records, your job is to
+write a SQL query that suits the user's request.
+
+Database schema:
+
+{DB_SCHEMA}
+
+today's date = {date.today()}
+
+{format_as_xml(SQL_EXAMPLES)}
+"""
+
+@agent.output_validator
+async def validate_output(ctx: RunContext[Deps], output: Response) -> Response:
+    if isinstance(output, InvalidRequest):
+        return output
+
+    # gemini often adds extraneous backslashes to SQL
+    output.sql_query = output.sql_query.replace('\\', '')
+    if not output.sql_query.upper().startswith('SELECT'):
+        raise ModelRetry('Please create a SELECT query')
+
+    try:
+        await ctx.deps.conn.execute(f'EXPLAIN {output.sql_query}')
+    except asyncpg.exceptions.PostgresError as e:
+        raise ModelRetry(f'Invalid query: {e}') from e
+    else:
+        return output
+
+async def main():
+    if len(sys.argv) == 1:
+        prompt = 'show me logs from yesterday, with level "error"'
+    else:
+        prompt = sys.argv[1]
+
+    async with database_connect(
+        'postgresql://postgres:postgres@localhost:54320', 'pydantic_ai_sql_gen'
+    ) as conn:
+        deps = Deps(conn)
+        result = await agent.run(prompt, deps=deps)
+    debug(result.output)
+
+# pyright: reportUnknownMemberType=false
+
+```
+
+----------------------------------------
+
+TITLE: Configure General Model Settings with PydanticAI Agent
+DESCRIPTION: This Python example demonstrates how to apply general model settings, such as `temperature`, to an `Agent`'s `run_sync` method. Setting `temperature` to `0.0` ensures deterministic model behavior, useful for precise outputs like factual queries.
+SOURCE: https://ai.pydantic.dev/agents
+
+LANGUAGE: python
+CODE:
+```
+from pydantic_ai import Agent
+
+agent = Agent('openai:gpt-4o')
+
+result_sync = agent.run_sync(
+    'What is the capital of Italy?', model_settings={'temperature': 0.0}
+)
+print(result_sync.output)
+#> Rome
+```
+
+----------------------------------------
+
+TITLE: Python: Asynchronous SQL Query Validation with PydanticAI Agent
+DESCRIPTION: This Python example demonstrates how to use PydanticAI's `agent.output_validator` decorator to asynchronously validate SQL queries generated by an AI agent. It defines `Success` and `InvalidRequest` models for agent output and uses a `DatabaseConn` dependency. The `validate_sql` function checks if the generated SQL query is valid by attempting an `EXPLAIN` operation against a fake database, raising a `ModelRetry` error if the query is invalid, prompting the model to retry.
+SOURCE: https://ai.pydantic.dev/result
+
+LANGUAGE: Python
+CODE:
+```
+from typing import Union
+
+from fake_database import DatabaseConn, QueryError
+from pydantic import BaseModel
+
+from pydantic_ai import Agent, RunContext, ModelRetry
+
+class Success(BaseModel):
+    sql_query: str
+
+class InvalidRequest(BaseModel):
+    error_message: str
+
+Output = Union[Success, InvalidRequest]
+agent = Agent[DatabaseConn, Output](
+    'google-gla:gemini-1.5-flash',
+    output_type=Output,  # type: ignore
+    deps_type=DatabaseConn,
+    system_prompt='Generate PostgreSQL flavored SQL queries based on user input.',
+)
+
+@agent.output_validator
+async def validate_sql(ctx: RunContext[DatabaseConn], output: Output) -> Output:
+    if isinstance(output, InvalidRequest):
+        return output
+    try:
+        await ctx.deps.execute(f'EXPLAIN {output.sql_query}')
+    except QueryError as e:
+        raise ModelRetry(f'Invalid query: {e}') from e
+    else:
+        return output
+
+result = agent.run_sync(
+    'get me users who were last active yesterday.', deps=DatabaseConn()
+)
+print(result.output)
+#> sql_query='SELECT * FROM users WHERE last_active::date = today() - interval 1 day'
+```
+
+----------------------------------------
+
+TITLE: Asynchronous PostgreSQL Database Connection and Schema Setup
+DESCRIPTION: This Python `asynccontextmanager` facilitates connecting to a PostgreSQL database using `asyncpg`. It includes logic to verify database existence, create it if absent, and apply a predefined schema with a custom ENUM type. The connection is yielded for use within the `async with` block and is automatically closed upon exiting the context.
+SOURCE: https://ai.pydantic.dev/examples/sql-gen
+
+LANGUAGE: Python
+CODE:
+```
+# pyright: reportUnknownVariableType=false
+@asynccontextmanager
+async def database_connect(server_dsn: str, database: str) -> AsyncGenerator[Any, None]:
+    with logfire.span('check and create DB'):
+        conn = await asyncpg.connect(server_dsn)
+        try:
+            db_exists = await conn.fetchval(
+                'SELECT 1 FROM pg_database WHERE datname = $1', database
+            )
+            if not db_exists:
+                await conn.execute(f'CREATE DATABASE {database}')
+        finally:
+            await conn.close()
+
+    conn = await asyncpg.connect(f'{server_dsn}/{database}')
+    try:
+        with logfire.span('create schema'):
+            async with conn.transaction():
+                if not db_exists:
+                    await conn.execute(
+                        "CREATE TYPE log_level AS ENUM ('debug', 'info', 'warning', 'error', 'critical')"
+                    )
+                    await conn.execute(DB_SCHEMA)
+        yield conn
+    finally:
+        await conn.close()
+```
+
+----------------------------------------
+
+TITLE: Initialize OpenAIModel Directly using Environment Variable
+DESCRIPTION: Illustrates direct instantiation of `OpenAIModel` with just the model name, assuming the `OPENAI_API_KEY` is set in the environment. The initialized model can then be passed to an `Agent`.
+SOURCE: https://ai.pydantic.dev/models/openai
+
+LANGUAGE: Python
+CODE:
+```
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+
+model = OpenAIModel('gpt-4o')
+agent = Agent(model)
+...
+```
+
+----------------------------------------
+
+TITLE: Example: Running a Pydantic Graph Asynchronously
+DESCRIPTION: This example demonstrates how to use the `Graph.run` method to execute a defined graph asynchronously. It shows how to initialize the graph with a starting state and observe the state transitions after multiple runs, illustrating stateful graph execution.
+SOURCE: https://ai.pydantic.dev/api/pydantic_graph/graph
+
+LANGUAGE: Python
+CODE:
+```
+from never_42 import Increment, MyState, never_42_graph
+
+async def main():
+    state = MyState(1)
+    await never_42_graph.run(Increment(), state=state)
+    print(state)
+    #> MyState(number=2)
+
+    state = MyState(41)
+    await never_42_graph.run(Increment(), state=state)
+    print(state)
+    #> MyState(number=43)
+```
+
+----------------------------------------
+
+TITLE: Evaluating LLM-Generated Recipes with LLMJudge in Python
+DESCRIPTION: This Python example demonstrates how to evaluate LLM-generated recipes using `pydantic-evals` and `LLMJudge`. It defines Pydantic models for customer orders and recipes, sets up an `Agent` for recipe generation, and creates a `Dataset` with case-specific and dataset-level evaluators to assess recipe quality and adherence to dietary restrictions.
+SOURCE: https://ai.pydantic.dev/evals
+
+LANGUAGE: Python
+CODE:
+```
+from __future__ import annotations
+
+from typing import Any
+
+from pydantic import BaseModel
+
+from pydantic_ai import Agent, format_as_xml
+from pydantic_evals import Case, Dataset
+from pydantic_evals.evaluators import IsInstance, LLMJudge
+
+class CustomerOrder(BaseModel):
+    dish_name: str
+    dietary_restriction: str | None = None
+
+class Recipe:
+    ingredients: list[str]
+    steps: list[str]
+
+recipe_agent = Agent(
+    'groq:llama-3.3-70b-versatile',
+    output_type=Recipe,
+    system_prompt=(
+        'Generate a recipe to cook the dish that meets the dietary restrictions.'
+    ),
+)
+
+async def transform_recipe(customer_order: CustomerOrder) -> Recipe:
+    r = await recipe_agent.run(format_as_xml(customer_order))
+    return r.output
+
+recipe_dataset = Dataset[CustomerOrder, Recipe, Any](
+    cases=[
+        Case(
+            name='vegetarian_recipe',
+            inputs=CustomerOrder(
+                dish_name='Spaghetti Bolognese', dietary_restriction='vegetarian'
+            ),
+            expected_output=None,
+            metadata={'focus': 'vegetarian'},
+            evaluators=(
+                LLMJudge(
+                    rubric='Recipe should not contain meat or animal products',
+                ),
+            ),
+        ),
+        Case(
+            name='gluten_free_recipe',
+            inputs=CustomerOrder(
+                dish_name='Chocolate Cake', dietary_restriction='gluten-free'
+            ),
+            expected_output=None,
+            metadata={'focus': 'gluten-free'},
+            # Case-specific evaluator with a focused rubric
+            evaluators=(
+                LLMJudge(
+                    rubric='Recipe should not contain gluten or wheat products',
+                ),
+            ),
+        ),
+    ],
+    evaluators=[
+        IsInstance(type_name='Recipe'),
+        LLMJudge(
+            rubric='Recipe should have clear steps and relevant ingredients',
+            include_input=True,
+            model='anthropic:claude-3-7-sonnet-latest',
+        ),
+    ],
+)
+
+report = recipe_dataset.evaluate_sync(transform_recipe)
+print(report)
+"""
+     Evaluation Summary: transform_recipe
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Case ID            ┃ Assertions ┃ Duration ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ vegetarian_recipe  │ ✔✔✔        │     10ms │
+├────────────────────┼────────────┼──────────┤
+│ gluten_free_recipe │ ✔✔✔        │     10ms │
+├────────────────────┴────────────┴──────────┤
+│ Averages           │ 100.0% ✔   │     10ms │
+└────────────────────┴────────────┴──────────┘
+"""
+```
+
+----------------------------------------
+
+TITLE: Reusing Message History Across Different AI Models
+DESCRIPTION: This Python example demonstrates how to reuse a message history generated by one AI model (`openai:gpt-4o`) with a different AI model (`google-gla:gemini-1.5-pro`) using the `pydantic-ai` library. It showcases the model-agnostic nature of messages, allowing for consistent conversational context across diverse large language models. The snippet initializes an agent, performs an initial run, and then reuses the `new_messages()` output as `message_history` for a subsequent run with a different model.
+SOURCE: https://ai.pydantic.dev/message-history
+
+LANGUAGE: Python
+CODE:
+```
+from pydantic_ai import Agent
+
+agent = Agent('openai:gpt-4o', system_prompt='Be a helpful assistant.')
+
+result1 = agent.run_sync('Tell me a joke.')
+print(result1.output)
+# > Did you hear about the toothpaste scandal? They called it Colgate.
+
+result2 = agent.run_sync(
+    'Explain?',
+    model='google-gla:gemini-1.5-pro',
+    message_history=result1.new_messages(),
+)
+print(result2.output)
+# > This is an excellent joke invented by Samuel Colvin, it needs no explanation.
+
+print(result2.all_messages())
+"""
+[
+    ModelRequest(
+        parts=[
+            SystemPromptPart(
+                content='Be a helpful assistant.',
+                timestamp=datetime.datetime(...),
+            ),
+            UserPromptPart(
+                content='Tell me a joke.',
+                timestamp=datetime.datetime(...),
+            ),
+        ]
+    ),
+    ModelResponse(
+        parts=[
+            TextPart(
+                content='Did you hear about the toothpaste scandal? They called it Colgate.'
+            )
+        ],
+        usage=Usage(requests=1, request_tokens=60, response_tokens=12, total_tokens=72),
+        model_name='gpt-4o',
+        timestamp=datetime.datetime(...),
+    ),
+    ModelRequest(
+        parts=[
+            UserPromptPart(
+                content='Explain?',
+                timestamp=datetime.datetime(...),
+            )
+        ]
+    ),
+    ModelResponse(
+        parts=[
+            TextPart(
+                content='This is an excellent joke invented by Samuel Colvin, it needs no explanation.'
+            )
+        ],
+        usage=Usage(requests=1, request_tokens=61, response_tokens=26, total_tokens=87),
+        model_name='gemini-1.5-pro',
+        timestamp=datetime.datetime(...),
+    ),
+]
+"""
+```
+
+----------------------------------------
+
+TITLE: Implementing Pydantic-AI Output Functions with Agent Chaining and Error Handling
+DESCRIPTION: This comprehensive example demonstrates the definition and usage of output functions within Pydantic-AI agents. It showcases how to define Pydantic models for structured data and errors, implement output functions that validate inputs and raise `ModelRetry` for retries, and chain agents together. The example includes a SQL agent that processes queries and a router agent that delegates to the SQL agent, illustrating how to manage different output types and propagate errors across agent interactions.
+SOURCE: https://ai.pydantic.dev/result
+
+LANGUAGE: Python
+CODE:
+```
+import re
+from typing import Union
+
+from pydantic import BaseModel
+
+from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai._output import ToolRetryError
+from pydantic_ai.exceptions import UnexpectedModelBehavior
+
+class Row(BaseModel):
+    name: str
+    country: str
+
+tables = {
+    'capital_cities': [
+        Row(name='Amsterdam', country='Netherlands'),
+        Row(name='Mexico City', country='Mexico'),
+    ]
+}
+
+class SQLFailure(BaseModel):
+    """An unrecoverable failure. Only use this when you can't change the query to make it work."""
+
+    explanation: str
+
+def run_sql_query(query: str) -> list[Row]:
+    """Run a SQL query on the database."""
+
+    select_table = re.match(r'SELECT (.+) FROM (\w+)', query)
+    if select_table:
+        column_names = select_table.group(1)
+        if column_names != '*':
+            raise ModelRetry("Only 'SELECT *' is supported, you'll have to do column filtering manually.")
+
+        table_name = select_table.group(2)
+        if table_name not in tables:
+            raise ModelRetry(
+                f"Unknown table '{table_name}' in query '{query}'. Available tables: {', '.join(tables.keys())}."
+            )
+
+        return tables[table_name]
+
+    raise ModelRetry(f"Unsupported query: '{query}'.")
+
+sql_agent = Agent[None, Union[list[Row], SQLFailure]](
+    'openai:gpt-4o',
+    output_type=[run_sql_query, SQLFailure],
+    instructions='You are a SQL agent that can run SQL queries on a database.',
+)
+
+async def hand_off_to_sql_agent(ctx: RunContext, query: str) -> list[Row]:
+    """I take natural language queries, turn them into SQL, and run them on a database."""
+
+    # Drop the final message with the output tool call, as it shouldn't be passed on to the SQL agent
+    messages = ctx.messages[:-1]
+    try:
+        result = await sql_agent.run(query, message_history=messages)
+        output = result.output
+        if isinstance(output, SQLFailure):
+            raise ModelRetry(f'SQL agent failed: {output.explanation}')
+        return output
+    except UnexpectedModelBehavior as e:
+        # Bubble up potentially retryable errors to the router agent
+        if (cause := e.__cause__) and isinstance(cause, ToolRetryError):
+            raise ModelRetry(f'SQL agent failed: {cause.tool_retry.content}') from e
+        else:
+            raise
+
+class RouterFailure(BaseModel):
+    """Use me when no appropriate agent is found or the used agent failed."""
+
+    explanation: str
+
+router_agent = Agent[None, Union[list[Row], RouterFailure]](
+    'openai:gpt-4o',
+    output_type=[hand_off_to_sql_agent, RouterFailure],
+    instructions='You are a router to other agents. Never try to solve a problem yourself, just pass it on.',
+)
+
+result = router_agent.run_sync('Select the names and countries of all capitals')
+print(result.output)
+"""
+[
+    Row(name='Amsterdam', country='Netherlands'),
+    Row(name='Mexico City', country='Mexico'),
+]
+"""
+
+result = router_agent.run_sync('Select all pets')
+print(result.output)
+"""
+explanation = "The requested table 'pets' does not exist in the database. The only available table is 'capital_cities', which does not contain data about pets."
+"""
+
+result = router_agent.run_sync('How do I fly from Amsterdam to Mexico City?')
+print(result.output)
+"""
+explanation = 'I am not equipped to provide travel information, such as flights from Amsterdam to Mexico City.'
+"""
+```
+
+----------------------------------------
+
+TITLE: Install PydanticAI Package
+DESCRIPTION: Instructions for installing the PydanticAI package, which includes core dependencies and libraries for all models. This installation method requires Python 3.9 or newer. Alternatively, a 'slim' version can be installed for specific model usage.
+SOURCE: https://ai.pydantic.dev/install
+
+LANGUAGE: Python
+CODE:
+```
+pip install pydantic-ai
+```
+
+LANGUAGE: Python
+CODE:
+```
+uv add pydantic-ai
+```
+
+----------------------------------------
+
+TITLE: Preventing Infinite Loops with Request Limits in PydanticAI
+DESCRIPTION: This example illustrates how to use `request_limit` within `UsageLimits` to prevent an AI agent from entering an infinite loop of requests, especially when dealing with retrying tools. It demonstrates setting a maximum number of requests and handling the `UsageLimitExceeded` exception, ensuring controlled execution.
+SOURCE: https://ai.pydantic.dev/agents
+
+LANGUAGE: python
+CODE:
+```
+from typing_extensions import TypedDict
+
+from pydantic_ai import Agent, ModelRetry
+from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.usage import UsageLimits
+
+class NeverOutputType(TypedDict):
+    """
+    Never ever coerce data to this type.
+    """
+
+    never_use_this: str
+
+agent = Agent(
+    'anthropic:claude-3-5-sonnet-latest',
+    retries=3,
+    output_type=NeverOutputType,
+    system_prompt='Any time you get a response, call the `infinite_retry_tool` to produce another response.',
+)
+
+@agent.tool_plain(retries=5)  # (1)!
+def infinite_retry_tool() -> int:
+    raise ModelRetry('Please try again.')
+
+try:
+    result_sync = agent.run_sync(
+        'Begin infinite retry loop!', usage_limits=UsageLimits(request_limit=3)  # (2)!
+    )
+except UsageLimitExceeded as e:
+    print(e)
+    # The next request would exceed the request_limit of 3
+```
